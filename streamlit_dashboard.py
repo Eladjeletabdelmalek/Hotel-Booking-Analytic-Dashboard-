@@ -4,12 +4,17 @@ import matplotlib.pyplot as plt
 import seaborn as sns 
 import streamlit as st
 
-st.title('Analytic dashboard')
-file=st.file_uploader('choose a csv file or excel',type='csv')
+
+st.title('Hotel booking dashboard')
+file='hotel_booking.csv'
 if file is not None :
     df= pd.read_csv(file)
-    st.write('file uploaded')
     
+    
+#Defining The columns  for the widgets 
+cols=st.columns(5)
+    
+
 st.subheader('data preview')
 st.write(df.head())
 st.subheader('data summary')
@@ -30,4 +35,4 @@ if st.button('generate'):
     st.line_chart(f_df.set_index(x)[y])
     
 else:
-    st.write('upload any file ...')    
+    st.write('Please , select any column ')    

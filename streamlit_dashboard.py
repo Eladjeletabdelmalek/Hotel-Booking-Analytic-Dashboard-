@@ -4,6 +4,10 @@ import matplotlib.pyplot as plt
 import seaborn as sns 
 import streamlit as st
 
+st.set_page_config(
+    page_title="Full Width App",
+    layout="wide"   # 👈 this makes it full width
+)
 
 st.title('Hotel booking dashboard')
 file='hotel_booking.csv'
@@ -12,11 +16,10 @@ if file is not None :
     
     
 #Defining The columns  for the widgets 
-cols=st.columns(5)
-    
+cols=st.columns(3) 
+with cols[0]:
+    st.bar_chart(data=df,x='market_segment',y='lead_time',color='is_canceled')
 
-st.subheader('data preview')
-st.write(df.head())
 st.subheader('data summary')
 st.write(df.describe()) 
 st.subheader('data checking')

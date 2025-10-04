@@ -5,7 +5,7 @@ import seaborn as sns
 import streamlit as st
 import pycountry
 from countryinfo import CountryInfo
-
+import plotly.express as px
 
 
 st.set_page_config(
@@ -15,17 +15,62 @@ st.set_page_config(
 
 st.title('Hotel booking dashboard')
 file='hotel_booking.csv'
+countries_file='countries_loc.csv'
 if file is not None :
     df= pd.read_csv(file)
-    
-    
+else:
+    st.write('File not found') 
+       
+if countries_file is not None :
+    countries=pd.read_csv(countries_file)
+else:
+    st.write('Countries  file  not found')      
+countries=countries.rename(columns={"Latitude": "lat", "Longitude": "lon"})    
 #Defining The columns  for the widgets 
 cols=st.columns(3) 
 with cols[0]:
     st.bar_chart(data=df,x='market_segment',y='lead_time',color='is_canceled')
 
-st.subheader('data summary')
-st.write(df.describe()) 
+
+
+# st.subheader('data summary')
+# st.write(df.describe()) 
+# st.map(data=countries,latitude="lat",
+#     longitude="lon",
+#     size="Count")
+
+
+# df_countries should have Country_Code (ISO-3) and Count
+fig = px.choropleth(
+    countries,
+    locations="Country_Code",         # ISO-3 country codes (FRA, USA, DZA, etc.)
+    color="Count",                    # what determines color intensity
+    hover_name="Country_Code",        # tooltip info
+    color_continuous_scale=[
+        (0.0, "lightblue"),   # low values
+        (0.5, "blue"),      # mid values
+        (1.0, "darkblue")          # high values
+    ], # try "Plasma", "Cividis", "Turbo", etc.
+    projection="natural earth",       # world projection
+    title="🌍 Country Distribution by Count",
+)
+
+# Optional: Customize the layout
+fig.update_layout(
+    template="plotly_dark",
+    geo=dict(showframe=False, showcoastlines=True, projection_type="natural earth"),
+    plot_bgcolor="rgba(0, 0, 0, 0)",
+    paper_bgcolor="rgba(0, 0, 0, 0)",
+    margin=dict(l=0, r=0, t=30, b=0),
+    height=500
+)
+
+# Display in Streamlit
+st.plotly_chart(fig, use_container_width=True)
+
+
+
+
 # st.subheader('data checking')
 col=df.columns.tolist()
 # sel_col=st.selectbox('select column',col)

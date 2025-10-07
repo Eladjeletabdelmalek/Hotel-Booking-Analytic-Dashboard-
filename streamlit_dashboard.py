@@ -24,7 +24,27 @@ else:
 if countries_file is not None :
     countries=pd.read_csv(countries_file)
 else:
-    st.write('Countries  file  not found')      
+    st.write('Countries  file  not found')     
+
+
+
+
+with st.sidebar:
+    selected_column=st.selectbox('Select Columns',df.columns.to_list())
+
+    if pd.api.types.is_numeric_dtype(df[selected_column]):
+        value=st.slider(f'the {selected_column}number' ,df[selected_column].min(),df[selected_column].max())
+        
+        
+    if pd.api.types.is_string_dtype(df[selected_column]) :
+        selected_value=st.selectbox('Value',df[selected_column].values)   
+
+
+ 
+ 
+ 
+ 
+ 
 countries=countries.rename(columns={"Latitude": "lat", "Longitude": "lon"})    
 #Defining The columns  for the widgets 
 cols=st.columns(3) 

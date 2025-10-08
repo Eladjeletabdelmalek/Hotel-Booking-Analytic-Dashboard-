@@ -9,7 +9,7 @@ import plotly.express as px
 
 
 st.set_page_config(
-    page_title="Full Width App",
+    page_title="Hotel booking App",
     layout="wide"   
 )
 
@@ -37,7 +37,7 @@ with st.sidebar:
         
         
     if pd.api.types.is_string_dtype(df[selected_column]) :
-        selected_value=st.selectbox('Value',df[selected_column].values)   
+        selected_value=st.selectbox('Value',df[selected_column].unique())   
 
 
  

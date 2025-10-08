@@ -6,6 +6,7 @@ import streamlit as st
 import pycountry
 from countryinfo import CountryInfo
 import plotly.express as px
+import plotly.graph_objects as go
 
 
 st.set_page_config(
@@ -47,18 +48,6 @@ with st.sidebar:
  
 countries=countries.rename(columns={"Latitude": "lat", "Longitude": "lon"})    
 #Defining The columns  for the widgets 
-cols=st.columns(3) 
-with cols[0]:
-    st.bar_chart(data=df,x='market_segment',y='lead_time',color='is_canceled')
-
-
-
-# st.subheader('data summary')
-# st.write(df.describe()) 
-# st.map(data=countries,latitude="lat",
-#     longitude="lon",
-#     size="Count")
-
 
 # df_countries should have Country_Code (ISO-3) and Count
 fig = px.choropleth(
@@ -87,6 +76,20 @@ fig.update_layout(
 
 # Display in Streamlit
 st.plotly_chart(fig, use_container_width=True)
+
+fig1=px.line(data_frame=df,y='stays_in_week_nights',x='adults',color='is_canceled')    
+fig2=px.bar(data_frame=df,x='market_segment',y='lead_time',color='is_canceled')
+fig3=go.Figure(data=[go.Pie(labels=df['customer_type'].unique(), values=df['customer_type'].value_counts(), hole=.3)])
+cols=st.columns(3) 
+
+with cols[0]:
+    st.plotly_chart(fig1)
+with cols[1]:
+    #st.bar_chart(data=df,x='market_segment',y='lead_time',color='is_canceled')
+    st.plotly_chart(fig2)    
+with cols[2]:
+    st.plotly_chart(fig3)    
+    
 
 
 

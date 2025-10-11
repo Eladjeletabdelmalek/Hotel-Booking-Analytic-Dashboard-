@@ -9,6 +9,8 @@ import plotly.express as px
 import plotly.graph_objects as go
 
 
+
+
 st.set_page_config(
     page_title="Hotel booking App",
     layout="wide"   
@@ -27,25 +29,8 @@ if countries_file is not None :
 else:
     st.write('Countries  file  not found')     
 
+cols=st.columns(4) 
 
-
-
-with st.sidebar:
-    selected_column=st.selectbox('Select Columns',df.columns.to_list())
-
-    if pd.api.types.is_numeric_dtype(df[selected_column]):
-        value=st.slider(f'the {selected_column}number' ,df[selected_column].min(),df[selected_column].max())
-        
-        
-    if pd.api.types.is_string_dtype(df[selected_column]) :
-        selected_value=st.selectbox('Value',df[selected_column].unique())   
-
-
- 
- 
- 
- 
- 
 countries=countries.rename(columns={"Latitude": "lat", "Longitude": "lon"})    
 #Defining The columns  for the widgets 
 
@@ -77,17 +62,99 @@ fig.update_layout(
 # Display in Streamlit
 st.plotly_chart(fig, use_container_width=True)
 
+st.markdown("""
+<style>
+.card {
+  width: 200px;
+  height: 150px;
+  border-radius: 20px;
+  padding: 5px;  /* this creates the border space */
+  box-shadow: rgba(151, 65, 252, 0.2) 0 15px 30px -5px;
+  background-image: linear-gradient(144deg, #AF40FF, #5B42F3 50%, #00DDEB);
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
+  margin: 15px;
+}
+
+.card:hover {
+  transform: scale(1.05);
+  box-shadow: rgba(151, 65, 252, 0.4) 0 25px 40px -5px;
+}
+
+/* inner content */
+.card__content {
+  background: rgb(5, 6, 45);
+  border-radius: 17px;
+  width: 100%;
+  height: 100%;
+  color: white;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  text-align: center;
+  padding: 20px;
+}
+
+.card__content h3 {
+  font-size: 1.2rem;
+  margin-bottom: 10px;
+}
+
+.card__content p {
+  font-size: 0.9rem;
+  color: #bfbfbf;
+}
+</style>
+""", unsafe_allow_html=True)
+
+
+
+
+
+for col, title, desc in zip(
+    cols,
+    ["Analytics", "Reports", "AI Tools",'new thing'],
+    ["See trends", "Generate insights", "Explore models",'its content']
+):
+    with col:
+        st.markdown(f"""
+        <div class="card">
+          <div class="card__content">
+            <h3>{title}</h3>
+            <p>{desc}</p>
+          </div>
+        </div>
+        """, unsafe_allow_html=True)
+
+
+
+with st.sidebar:
+    selected_column=st.selectbox('Select Columns',df.columns.to_list())
+
+    if pd.api.types.is_numeric_dtype(df[selected_column]):
+        value=st.slider(f'the {selected_column}number' ,df[selected_column].min(),df[selected_column].max())
+        
+        
+    if pd.api.types.is_string_dtype(df[selected_column]) :
+        selected_value=st.selectbox('Value',df[selected_column].unique())   
+
+
+ 
+ 
+ 
+ 
+ 
+
 fig1=px.line(data_frame=df,y='stays_in_week_nights',x='adults',color='is_canceled')    
 fig2=px.bar(data_frame=df,x='market_segment',y='lead_time',color='is_canceled')
 fig3=go.Figure(data=[go.Pie(labels=df['customer_type'].unique(), values=df['customer_type'].value_counts(), hole=.3)])
-cols=st.columns(3) 
 
-with cols[0]:
+cols2=st.columns(3)
+with cols2[0]:
     st.plotly_chart(fig1)
-with cols[1]:
+with cols2[1]:
     #st.bar_chart(data=df,x='market_segment',y='lead_time',color='is_canceled')
     st.plotly_chart(fig2)    
-with cols[2]:
+with cols2[2]:
     st.plotly_chart(fig3)    
     
 

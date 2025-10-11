@@ -35,32 +35,33 @@ countries=countries.rename(columns={"Latitude": "lat", "Longitude": "lon"})
 #Defining The columns  for the widgets 
 
 # df_countries should have Country_Code (ISO-3) and Count
-fig = px.choropleth(
-    countries,
-    locations="Country_Code",         # ISO-3 country codes (FRA, USA, DZA, etc.)
-    color="Count",                    # what determines color intensity
-    hover_name="Country_Code",        # tooltip info
-    color_continuous_scale=[
-        (0.0, "lightblue"),   # low values
-        (0.5, "blue"),      # mid values
-        (1.0, "darkblue")          # high values
-    ], # try "Plasma", "Cividis", "Turbo", etc.
-    projection="natural earth",       # world projection
-    title="🌍 Country Distribution by Count",
-)
-
-# Optional: Customize the layout
-fig.update_layout(
-    template="plotly_dark",
-    geo=dict(showframe=False, showcoastlines=True, projection_type="natural earth"),
-    plot_bgcolor="rgba(0, 0, 0, 0)",
-    paper_bgcolor="rgba(0, 0, 0, 0)",
-    margin=dict(l=0, r=0, t=30, b=0),
-    height=500
-)
-
-# Display in Streamlit
-st.plotly_chart(fig, use_container_width=True)
+with st.container(border=True):
+    fig = px.choropleth(
+        countries,
+        locations="Country_Code",         # ISO-3 country codes (FRA, USA, DZA, etc.)
+        color="Count",                    # what determines color intensity
+        hover_name="Country_Code",        # tooltip info
+        color_continuous_scale=[
+            (0.0, "lightblue"),   # low values
+            (0.5, "blue"),      # mid values
+            (1.0, "darkblue")          # high values
+        ], # try "Plasma", "Cividis", "Turbo", etc.
+        projection="natural earth",       # world projection
+        title="🌍 Country Distribution by Count",
+    )
+    
+    # Optional: Customize the layout
+    fig.update_layout(
+        template="plotly_dark",
+        geo=dict(showframe=False, showcoastlines=True, projection_type="natural earth"),
+        plot_bgcolor="rgba(0, 0, 0, 0)",
+        paper_bgcolor="rgba(0, 0, 0, 0)",
+        margin=dict(l=0, r=0, t=30, b=0),
+        height=500
+    )
+    
+    # Display in Streamlit
+    st.plotly_chart(fig, use_container_width=True)
 
 st.markdown("""
 <style>
@@ -107,25 +108,36 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 
+# for col, title, desc in zip(
+#     cols,
+#     ["Analytics", "Reports", "AI Tools",'new thing'],
+#     ["See trends", "Generate insights", "Explore models",'its content']
+# ):
+#     with col:
+#         st.markdown(f"""
+#         <div class="card">
+#           <div class="card__content">
+#             <h3>{title}</h3>
+#             <p>{desc}</p>
+#           </div>
+#         </div>
+#         """, unsafe_allow_html=True)
+
+values={
+    "Countries":len(df['country'].unique()),
+    "Customers":len(df['name'].unique()),
+    "Customers1":len(df['name'].unique()),
+    "Customers2":len(df['name'].unique())
+        }
 
 
-
-for col, title, desc in zip(
-    cols,
-    ["Analytics", "Reports", "AI Tools",'new thing'],
-    ["See trends", "Generate insights", "Explore models",'its content']
-):
+containers1=[st.container(border=True) for _ in range(4)]
+for i, col in enumerate(cols):
     with col:
-        st.markdown(f"""
-        <div class="card">
-          <div class="card__content">
-            <h3>{title}</h3>
-            <p>{desc}</p>
-          </div>
-        </div>
-        """, unsafe_allow_html=True)
-
-
+        with st.container(border=True,height=100):
+            st.metric(label="Countries", value=len(df['country'].unique()))
+            
+    
 
 with st.sidebar:
     selected_column=st.selectbox('Select Columns',df.columns.to_list())
@@ -150,12 +162,15 @@ fig3=go.Figure(data=[go.Pie(labels=df['customer_type'].unique(), values=df['cust
 
 cols2=st.columns(3)
 with cols2[0]:
-    st.plotly_chart(fig1)
+    with st.container(border=True):
+        st.plotly_chart(fig1)
 with cols2[1]:
-    #st.bar_chart(data=df,x='market_segment',y='lead_time',color='is_canceled')
-    st.plotly_chart(fig2)    
+    with st.container(border=True):
+        #st.bar_chart(data=df,x='market_segment',y='lead_time',color='is_canceled')
+        st.plotly_chart(fig2)    
 with cols2[2]:
-    st.plotly_chart(fig3)    
+    with st.container(border=True): 
+        st.plotly_chart(fig3)    
     
 
 

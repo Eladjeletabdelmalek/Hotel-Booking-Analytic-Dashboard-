@@ -17,7 +17,7 @@ st.set_page_config(
 )
 
 st.title('Hotel booking dashboard')
-file='hotel_booking.csv'
+file='hotel_booking_cleaned.csv'
 countries_file='countries_loc.csv'
 if file is not None :
     df= pd.read_csv(file)
@@ -30,6 +30,15 @@ else:
     st.write('Countries  file  not found')     
 
 cols=st.columns(4) 
+with st.sidebar:
+    selected_column=st.selectbox('Select Columns',df.columns.to_list())
+
+    if pd.api.types.is_numeric_dtype(df[selected_column]):
+        value=st.slider(f'the {selected_column}number' ,df[selected_column].min(),df[selected_column].max())
+        
+        
+    if pd.api.types.is_string_dtype(df[selected_column]) :
+        selected_value=st.selectbox('Value',df[selected_column].unique())   
 
 countries=countries.rename(columns={"Latitude": "lat", "Longitude": "lon"})    
 #Defining The columns  for the widgets 
@@ -123,54 +132,89 @@ st.markdown("""
 #         </div>
 #         """, unsafe_allow_html=True)
 
-values={
-    "Countries":len(df['country'].unique()),
-    "Customers":len(df['name'].unique()),
-    "Customers1":len(df['name'].unique()),
-    "Customers2":len(df['name'].unique())
-        }
+# values={
+#     "Countries":len(df['country'].unique()),
+#     "Customers":len(df['name'].unique()),
+#     "Customers1":len(df['name'].unique()),
+#     "Customers2":len(df['name'].unique())
+#         }
 
 
 containers1=[st.container(border=True) for _ in range(4)]
-for i, col in enumerate(cols):
-    with col:
-        with st.container(border=True,height=100):
-            st.metric(label="Countries", value=len(df['country'].unique()))
+with cols[0]:
+    with st.container(border=True,height=100):
+        st.metric(label="Countries", value=len(df['country'].unique()))
+with cols[1]:
+    with st.container(border=True,height=100):
+        st.metric(label="Customers", value=len(df))
+with cols[2]:
+    with st.container(border=True,height=100):
+        st.metric(label="Resort Hotels", value=df['hotel'].value_counts()[0])
+with cols[3]:
+    with st.container(border=True,height=100):
+        st.metric(label="City Hotels", value=df['hotel'].value_counts()[1])       
             
     
-
-with st.sidebar:
-    selected_column=st.selectbox('Select Columns',df.columns.to_list())
-
-    if pd.api.types.is_numeric_dtype(df[selected_column]):
-        value=st.slider(f'the {selected_column}number' ,df[selected_column].min(),df[selected_column].max())
-        
-        
-    if pd.api.types.is_string_dtype(df[selected_column]) :
-        selected_value=st.selectbox('Value',df[selected_column].unique())   
-
-
- 
- 
- 
- 
  
 
 fig1=px.line(data_frame=df,y='stays_in_week_nights',x='adults',color='is_canceled')    
 fig2=px.bar(data_frame=df,x='market_segment',y='lead_time',color='is_canceled')
-fig3=go.Figure(data=[go.Pie(labels=df['customer_type'].unique(), values=df['customer_type'].value_counts(), hole=.3)])
+fig3=go.Figure(data=[go.Pie(labels=df['customer_type'].unique(),values=df['customer_type'].value_counts(), hole=.3)])
+fig4=px.bar(data_frame=df,x='hotel',color='is_canceled',color_discrete_map={0: "blue",1: "purple"},
+            barmode='group',labels={'x':'hotel type','y':'cancellations'},
+                   color_discrete_sequence=px.colors.qualitative.Set2)
+fig5=px.bar(data_frame=df,x='season',color='hotel')
+fig6=px.histogram(data_frame=df,x='lead_time',color='is_canceled')
+df["arrival_date"] = pd.to_datetime(df["arrival_date"])
+df["day_of_year"] = df["arrival_date"].dt.day_of_year
 
+daily_counts = (
+    df.groupby(["day_of_year", "hotel"])
+      .size()
+      .reset_index(name="count")
+)
+
+fig7 = px.scatter(
+    daily_counts,
+    x="day_of_year",
+    y="count",
+    color="hotel",
+    labels={
+        "day_of_year": "Day of Year",
+        "count": "Number of Reservations",
+        "hotel": "Hotel Type"
+    },
+    title="Daily Hotel Arrivals Throughout the Year"
+)
+
+#fig7=px.scatter(x=df['arrival_date'].dt.day_of_year.value_counts(),color=df['hotel'])
 cols2=st.columns(3)
 with cols2[0]:
     with st.container(border=True):
-        st.plotly_chart(fig1)
+        st.plotly_chart(fig3)
 with cols2[1]:
     with st.container(border=True):
         #st.bar_chart(data=df,x='market_segment',y='lead_time',color='is_canceled')
-        st.plotly_chart(fig2)    
+        st.plotly_chart(fig4)    
 with cols2[2]:
     with st.container(border=True): 
-        st.plotly_chart(fig3)    
+        st.plotly_chart(fig5)    
+
+cols3=st.columns(1)
+with cols3[0]:
+    with st.container(border=True):
+        st.plotly_chart(fig6)
+cols4=st.columns(1)
+with cols4[0]:
+    with st.container(border=True):
+        st.plotly_chart(fig7)        
+# with cols3[1]:
+#     with st.container(border=True):
+#         #st.bar_chart(data=df,x='market_segment',y='lead_time',color='is_canceled')
+#         st.plotly_chart(fig5)    
+# with cols3[2]:
+#     with st.container(border=True): 
+#         st.plotly_chart(fig6)            
     
 
 

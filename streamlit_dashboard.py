@@ -1,14 +1,7 @@
-import numpy as np 
-import pandas as pd 
-import matplotlib.pyplot as plt 
-import seaborn as sns 
+import pandas as pd  
 import streamlit as st
-import pycountry
-from countryinfo import CountryInfo
 import plotly.express as px
 import plotly.graph_objects as go
-
-
 
 
 st.set_page_config(
@@ -75,14 +68,15 @@ with st.container(border=True):
 st.markdown("""
 <style>
 .card {
-  width: 200px;
+  width: 100%;
+  max-width: 220px;
   height: 150px;
   border-radius: 20px;
-  padding: 5px;  /* this creates the border space */
+  padding: 5px;
   box-shadow: rgba(151, 65, 252, 0.2) 0 15px 30px -5px;
   background-image: linear-gradient(144deg, #AF40FF, #5B42F3 50%, #00DDEB);
   transition: transform 0.3s ease, box-shadow 0.3s ease;
-  margin: 15px;
+  margin: 15px auto;
 }
 
 .card:hover {
@@ -90,7 +84,6 @@ st.markdown("""
   box-shadow: rgba(151, 65, 252, 0.4) 0 25px 40px -5px;
 }
 
-/* inner content */
 .card__content {
   background: rgb(5, 6, 45);
   border-radius: 17px;
@@ -101,12 +94,21 @@ st.markdown("""
   flex-direction: column;
   justify-content: center;
   text-align: center;
-  padding: 20px;
+  padding: 10px;
 }
 
 .card__content h3 {
   font-size: 1.2rem;
-  margin-bottom: 10px;
+  margin: 0;
+  font-weight: 500;
+  display: flex;
+  align-items: center; /* vertically center icon with text */
+  justify-content: center; /* center horizontally */
+  gap: 8px; /* space between label and icon */
+}
+
+.card__content h2 {
+  font-size: 2rem;
 }
 
 .card__content p {
@@ -116,29 +118,9 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-
-# for col, title, desc in zip(
-#     cols,
-#     ["Analytics", "Reports", "AI Tools",'new thing'],
-#     ["See trends", "Generate insights", "Explore models",'its content']
-# ):
-#     with col:
-#         st.markdown(f"""
-#         <div class="card">
-#           <div class="card__content">
-#             <h3>{title}</h3>
-#             <p>{desc}</p>
-#           </div>
-#         </div>
-#         """, unsafe_allow_html=True)
-
-# values={
-#     "Countries":len(df['country'].unique()),
-#     "Customers":len(df['name'].unique()),
-#     "Customers1":len(df['name'].unique()),
-#     "Customers2":len(df['name'].unique())
-#         }
-
+# st.markdown("""
+# <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+# """, unsafe_allow_html=True)
 
 containers1=[st.container(border=True) for _ in range(4)]
 with cols[0]:
@@ -152,19 +134,18 @@ with cols[2]:
         st.metric(label="Resort Hotels", value=df['hotel'].value_counts()[0])
 with cols[3]:
     with st.container(border=True,height=100):
-        st.metric(label="City Hotels", value=df['hotel'].value_counts()[1])       
-            
+        st.metric(label="City Hotels", value=df['hotel'].value_counts()[1])               
     
- 
 
-fig1=px.line(data_frame=df,y='stays_in_week_nights',x='adults',color='is_canceled')    
+fig1=px.sunburst(data_frame=df,path=['hotel','customer_type','meal'],values='total_nights', title="Total revenue over nights by hotel type")  
+
 fig2=px.bar(data_frame=df,x='market_segment',y='lead_time',color='is_canceled')
 fig3=go.Figure(data=[go.Pie(labels=df['customer_type'].unique(),values=df['customer_type'].value_counts(), hole=.3)])
-fig4=px.bar(data_frame=df,x='hotel',color='is_canceled',color_discrete_map={0: "blue",1: "purple"},
-            barmode='group',labels={'x':'hotel type','y':'cancellations'},
-                   color_discrete_sequence=px.colors.qualitative.Set2)
+fig4=px.bar(data_frame=df,y='adr',x='arrival_date_month',color='hotel',barmode='group',labels={'x':'month','y':'average daily rate'},)
 fig5=px.bar(data_frame=df,x='season',color='hotel')
 fig6=px.histogram(data_frame=df,x='lead_time',color='is_canceled')
+
+
 df["arrival_date"] = pd.to_datetime(df["arrival_date"])
 df["day_of_year"] = df["arrival_date"].dt.day_of_year
 
@@ -186,56 +167,66 @@ fig7 = px.scatter(
     },
     title="Daily Hotel Arrivals Throughout the Year"
 )
+df_polar = (
+    df.groupby(['hotel', 'customer_type'], as_index=False)
+      .agg(total_revenue=('total_revenue', 'sum'))
+)
+fig8=px.line_polar(data_frame=df_polar,r='total_revenue',
+                   theta='customer_type',color='hotel',line_close=True,
+                   title='Total revenue by customer type and hotel',
+                   template="plotly_dark",
+                   )
+fig9=px.scatter(data_frame=df,x='adr',y='lead_time',size='total_nights',color='hotel',title='Lead time vs Average Daily Rate')
 
 #fig7=px.scatter(x=df['arrival_date'].dt.day_of_year.value_counts(),color=df['hotel'])
 cols2=st.columns(3)
 with cols2[0]:
     with st.container(border=True):
-        st.plotly_chart(fig3)
+        st.plotly_chart(fig8,key="fig8")
 with cols2[1]:
     with st.container(border=True):
         #st.bar_chart(data=df,x='market_segment',y='lead_time',color='is_canceled')
-        st.plotly_chart(fig4)    
+        st.plotly_chart(fig4,key="fig4")    
 with cols2[2]:
     with st.container(border=True): 
-        st.plotly_chart(fig5)    
+        st.plotly_chart(fig5,key="fig5")    
+
 
 cols3=st.columns(1)
 with cols3[0]:
     with st.container(border=True):
-        st.plotly_chart(fig6)
+        st.plotly_chart(fig6,key="fig6")
+cols5=st.columns(2)
+with cols5[0]:
+    with st.container(border=True):
+        st.plotly_chart(fig1,key="fig1")
+with cols5[1]:
+    with st.container(border=True):
+        st.plotly_chart(fig9,key="fig9")            
 cols4=st.columns(1)
 with cols4[0]:
     with st.container(border=True):
-        st.plotly_chart(fig7)        
-# with cols3[1]:
+        st.plotly_chart(fig7,key="fig7") 
+                     
+        
+# cols6=st.columns(1)
+# with cols6[0]:
 #     with st.container(border=True):
-#         #st.bar_chart(data=df,x='market_segment',y='lead_time',color='is_canceled')
-#         st.plotly_chart(fig5)    
-# with cols3[2]:
-#     with st.container(border=True): 
-#         st.plotly_chart(fig6)            
-    
-
-
+#         st.plotly_chart(fig1)         
+               
 
 
 # st.subheader('data checking')
 col=df.columns.tolist()
-# sel_col=st.selectbox('select column',col)
-# unique_values=df[sel_col].unique() 
-# st.write(unique_values)
-# selected_v=st.selectbox('select a value',unique_values)
-# f_df=df[df[sel_col]==selected_v]
-# st.write(f_df)
 st.subheader('The countries')
 st.write(df['country'].value_counts())
-st.subheader('data visualization')
-x=st.selectbox('select x_column',col)
-y=st.selectbox('select y_column',col)
 
-if st.button('generate'):
-    st.line_chart(df.set_index(x)[y])
+# st.subheader('data visualization')
+# x=st.selectbox('select x_column',col)
+# y=st.selectbox('select y_column',col)
+
+# if st.button('generate'):
+#     st.line_chart(df.set_index(x)[y])
     
-else:
-    st.write('Please , select any column ')    
+# else:
+#     st.write('Please , select any column ')    

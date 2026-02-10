@@ -2,231 +2,395 @@ import pandas as pd
 import streamlit as st
 import plotly.express as px
 import plotly.graph_objects as go
+import os
+from datetime import datetime
 
-
+# Page configuration
 st.set_page_config(
-    page_title="Hotel booking App",
-    layout="wide"   
+    page_title="Hotel Booking Dashboard",
+    layout="wide",
+    initial_sidebar_state="expanded"
 )
 
-st.title('Hotel booking dashboard')
-file='hotel_booking_cleaned.csv'
-countries_file='countries_loc.csv'
-if file is not None :
-    df= pd.read_csv(file)
-else:
-    st.write('File not found') 
-       
-if countries_file is not None :
-    countries=pd.read_csv(countries_file)
-else:
-    st.write('Countries  file  not found')     
+# Custom CSS for better styling
+st.markdown("""
+    <style>
+    .main > div {
+        padding-top: 2rem;
+    }
+    h1 {
+        color: #1f77b4;
+    }
+    </style>
+""", unsafe_allow_html=True)
 
-cols=st.columns(4) 
-with st.sidebar:
-    selected_column=st.selectbox('Select Columns',df.columns.to_list())
+# Data loading functions
+@st.cache_data
+def load_data(filepath):
+    """Load hotel booking data from CSV file."""
+    try:
+        df = pd.read_csv(filepath)
+        return df
+    except FileNotFoundError:
+        st.error(f"❌ File '{filepath}' not found!")
+        st.stop()
+    except Exception as e:
+        st.error(f"❌ Error reading file: {e}")
+        st.stop()
 
-    if pd.api.types.is_numeric_dtype(df[selected_column]):
-        value=st.slider(f'the {selected_column}number' ,df[selected_column].min(),df[selected_column].max())
-        
-        
-    if pd.api.types.is_string_dtype(df[selected_column]) :
-        selected_value=st.selectbox('Value',df[selected_column].unique())   
+@st.cache_data
+def load_countries_data(filepath):
+    """Load countries location data from CSV file."""
+    try:
+        countries = pd.read_csv(filepath)
+        countries = countries.rename(columns={"Latitude": "lat", "Longitude": "lon"})
+        return countries
+    except FileNotFoundError:
+        st.error(f"❌ Countries file '{filepath}' not found!")
+        st.stop()
+    except Exception as e:
+        st.error(f"❌ Error reading countries file: {e}")
+        st.stop()
 
-countries=countries.rename(columns={"Latitude": "lat", "Longitude": "lon"})    
-#Defining The columns  for the widgets 
+def prepare_date_columns(df):
+    """Prepare date-related columns for analysis."""
+    df_copy = df.copy()
+    if 'arrival_date' in df_copy.columns:
+        df_copy["arrival_date"] = pd.to_datetime(df_copy["arrival_date"], errors='coerce')
+        df_copy["day_of_year"] = df_copy["arrival_date"].dt.day_of_year
+    return df_copy
 
-# df_countries should have Country_Code (ISO-3) and Count
-with st.container(border=True):
+# Visualization functions
+def create_choropleth_map(countries_data):
+    """Create choropleth map showing country distribution."""
     fig = px.choropleth(
-        countries,
-        locations="Country_Code",         # ISO-3 country codes (FRA, USA, DZA, etc.)
-        color="Count",                    # what determines color intensity
-        hover_name="Country_Code",        # tooltip info
+        countries_data,
+        locations="Country_Code",
+        color="Count",
+        hover_name="Country_Code",
         color_continuous_scale=[
-            (0.0, "lightblue"),   # low values
-            (0.5, "blue"),      # mid values
-            (1.0, "darkblue")          # high values
-        ], # try "Plasma", "Cividis", "Turbo", etc.
-        projection="natural earth",       # world projection
-        title="🌍 Country Distribution by Count",
+            (0.0, "lightblue"),
+            (0.5, "blue"),
+            (1.0, "darkblue")
+        ],
+        projection="natural earth",
+        title="🌍 Country Distribution by Booking Count",
     )
     
-    # Optional: Customize the layout
     fig.update_layout(
         template="plotly_dark",
         geo=dict(showframe=False, showcoastlines=True, projection_type="natural earth"),
         plot_bgcolor="rgba(0, 0, 0, 0)",
         paper_bgcolor="rgba(0, 0, 0, 0)",
-        margin=dict(l=0, r=0, t=30, b=0),
+        margin=dict(l=0, r=0, t=40, b=0),
         height=500
     )
     
-    # Display in Streamlit
-    st.plotly_chart(fig, use_container_width=True)
+    return fig
 
-st.markdown("""
-<style>
-.card {
-  width: 100%;
-  max-width: 220px;
-  height: 150px;
-  border-radius: 20px;
-  padding: 5px;
-  box-shadow: rgba(151, 65, 252, 0.2) 0 15px 30px -5px;
-  background-image: linear-gradient(144deg, #AF40FF, #5B42F3 50%, #00DDEB);
-  transition: transform 0.3s ease, box-shadow 0.3s ease;
-  margin: 15px auto;
-}
+def create_sunburst_chart(df):
+    """Create sunburst chart for revenue analysis."""
+    fig = px.sunburst(
+        data_frame=df,
+        path=['hotel', 'customer_type', 'meal'],
+        values='total_nights',
+        title="📊 Total Nights by Hotel Type, Customer Type & Meal"
+    )
+    fig.update_layout(margin=dict(l=0, r=0, t=40, b=0))
+    return fig
 
-.card:hover {
-  transform: scale(1.05);
-  box-shadow: rgba(151, 65, 252, 0.4) 0 25px 40px -5px;
-}
+def create_lead_time_bar(df):
+    """Create bar chart for lead time by market segment."""
+    fig = px.bar(
+        data_frame=df,
+        x='market_segment',
+        y='lead_time',
+        color='is_canceled',
+        title="📅 Lead Time by Market Segment",
+        labels={'lead_time': 'Lead Time (days)', 'market_segment': 'Market Segment'}
+    )
+    return fig
 
-.card__content {
-  background: rgb(5, 6, 45);
-  border-radius: 17px;
-  width: 100%;
-  height: 100%;
-  color: white;
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  text-align: center;
-  padding: 10px;
-}
+def create_customer_type_pie(df):
+    """Create pie chart for customer type distribution."""
+    fig = go.Figure(data=[go.Pie(
+        labels=df['customer_type'].unique(),
+        values=df['customer_type'].value_counts(),
+        hole=.3
+    )])
+    fig.update_layout(title="👥 Customer Type Distribution")
+    return fig
 
-.card__content h3 {
-  font-size: 1.2rem;
-  margin: 0;
-  font-weight: 500;
-  display: flex;
-  align-items: center; /* vertically center icon with text */
-  justify-content: center; /* center horizontally */
-  gap: 8px; /* space between label and icon */
-}
+def create_adr_by_month(df):
+    """Create grouped bar chart for ADR by month."""
+    fig = px.bar(
+        data_frame=df,
+        y='adr',
+        x='arrival_date_month',
+        color='hotel',
+        barmode='group',
+        title="💰 Average Daily Rate by Month",
+        labels={'arrival_date_month': 'Month', 'adr': 'Average Daily Rate ($)'}
+    )
+    return fig
 
-.card__content h2 {
-  font-size: 2rem;
-}
+def create_season_distribution(df):
+    """Create bar chart for seasonal distribution."""
+    fig = px.bar(
+        data_frame=df,
+        x='season',
+        color='hotel',
+        title="🌤️ Bookings by Season",
+        labels={'season': 'Season', 'count': 'Number of Bookings'}
+    )
+    return fig
 
-.card__content p {
-  font-size: 0.9rem;
-  color: #bfbfbf;
-}
-</style>
-""", unsafe_allow_html=True)
+def create_lead_time_histogram(df):
+    """Create histogram for lead time distribution."""
+    fig = px.histogram(
+        data_frame=df,
+        x='lead_time',
+        color='is_canceled',
+        title="📊 Lead Time Distribution",
+        labels={'lead_time': 'Lead Time (days)'},
+        nbins=50
+    )
+    return fig
 
-# st.markdown("""
-# <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
-# """, unsafe_allow_html=True)
-
-containers1=[st.container(border=True) for _ in range(4)]
-with cols[0]:
-    with st.container(border=True,height=100):
-        st.metric(label="Countries", value=len(df['country'].unique()))
-with cols[1]:
-    with st.container(border=True,height=100):
-        st.metric(label="Customers", value=len(df))
-with cols[2]:
-    with st.container(border=True,height=100):
-        st.metric(label="Resort Hotels", value=df['hotel'].value_counts()[0])
-with cols[3]:
-    with st.container(border=True,height=100):
-        st.metric(label="City Hotels", value=df['hotel'].value_counts()[1])               
+def create_daily_arrivals_scatter(df):
+    """Create scatter plot for daily arrivals throughout the year."""
+    daily_counts = (
+        df.groupby(["day_of_year", "hotel"])
+          .size()
+          .reset_index(name="count")
+    )
     
+    fig = px.scatter(
+        daily_counts,
+        x="day_of_year",
+        y="count",
+        color="hotel",
+        labels={
+            "day_of_year": "Day of Year",
+            "count": "Number of Reservations",
+            "hotel": "Hotel Type"
+        },
+        title="📅 Daily Hotel Arrivals Throughout the Year"
+    )
+    return fig
 
-fig1=px.sunburst(data_frame=df,path=['hotel','customer_type','meal'],values='total_nights', title="Total revenue over nights by hotel type")  
+def create_polar_revenue_chart(df):
+    """Create polar chart for revenue by customer type."""
+    df_polar = (
+        df.groupby(['hotel', 'customer_type'], as_index=False)
+          .agg(total_revenue=('total_revenue', 'sum'))
+    )
+    
+    fig = px.line_polar(
+        data_frame=df_polar,
+        r='total_revenue',
+        theta='customer_type',
+        color='hotel',
+        line_close=True,
+        title='💵 Total Revenue by Customer Type',
+        template="plotly_dark"
+    )
+    return fig
 
-fig2=px.bar(data_frame=df,x='market_segment',y='lead_time',color='is_canceled')
-fig3=go.Figure(data=[go.Pie(labels=df['customer_type'].unique(),values=df['customer_type'].value_counts(), hole=.3)])
-fig4=px.bar(data_frame=df,y='adr',x='arrival_date_month',color='hotel',barmode='group',labels={'x':'month','y':'average daily rate'},)
-fig5=px.bar(data_frame=df,x='season',color='hotel')
-fig6=px.histogram(data_frame=df,x='lead_time',color='is_canceled')
+def create_adr_leadtime_scatter(df):
+    """Create scatter plot for ADR vs Lead Time."""
+    fig = px.scatter(
+        data_frame=df,
+        x='adr',
+        y='lead_time',
+        size='total_nights',
+        color='hotel',
+        title='📈 Lead Time vs Average Daily Rate',
+        labels={'adr': 'Average Daily Rate ($)', 'lead_time': 'Lead Time (days)'}
+    )
+    return fig
 
-
-df["arrival_date"] = pd.to_datetime(df["arrival_date"])
-df["day_of_year"] = df["arrival_date"].dt.day_of_year
-
-daily_counts = (
-    df.groupby(["day_of_year", "hotel"])
-      .size()
-      .reset_index(name="count")
-)
-
-fig7 = px.scatter(
-    daily_counts,
-    x="day_of_year",
-    y="count",
-    color="hotel",
-    labels={
-        "day_of_year": "Day of Year",
-        "count": "Number of Reservations",
-        "hotel": "Hotel Type"
-    },
-    title="Daily Hotel Arrivals Throughout the Year"
-)
-df_polar = (
-    df.groupby(['hotel', 'customer_type'], as_index=False)
-      .agg(total_revenue=('total_revenue', 'sum'))
-)
-fig8=px.line_polar(data_frame=df_polar,r='total_revenue',
-                   theta='customer_type',color='hotel',line_close=True,
-                   title='Total revenue by customer type and hotel',
-                   template="plotly_dark",
-                   )
-fig9=px.scatter(data_frame=df,x='adr',y='lead_time',size='total_nights',color='hotel',title='Lead time vs Average Daily Rate')
-
-#fig7=px.scatter(x=df['arrival_date'].dt.day_of_year.value_counts(),color=df['hotel'])
-cols2=st.columns(3)
-with cols2[0]:
-    with st.container(border=True):
-        st.plotly_chart(fig8,key="fig8")
-with cols2[1]:
-    with st.container(border=True):
-        #st.bar_chart(data=df,x='market_segment',y='lead_time',color='is_canceled')
-        st.plotly_chart(fig4,key="fig4")    
-with cols2[2]:
-    with st.container(border=True): 
-        st.plotly_chart(fig5,key="fig5")    
-
-
-cols3=st.columns(1)
-with cols3[0]:
-    with st.container(border=True):
-        st.plotly_chart(fig6,key="fig6")
-cols5=st.columns(2)
-with cols5[0]:
-    with st.container(border=True):
-        st.plotly_chart(fig1,key="fig1")
-with cols5[1]:
-    with st.container(border=True):
-        st.plotly_chart(fig9,key="fig9")            
-cols4=st.columns(1)
-with cols4[0]:
-    with st.container(border=True):
-        st.plotly_chart(fig7,key="fig7") 
-                     
+# Main application
+def main():
+    st.title('🏨 Hotel Booking Dashboard')
+    
+    # File paths
+    data_file = 'hotel_booking_cleaned.csv'
+    countries_file = 'countries_loc.csv'
+    
+    # Load data
+    df_original = load_data(data_file)
+    countries = load_countries_data(countries_file)
+    
+    # Prepare date columns
+    df_original = prepare_date_columns(df_original)
+    
+    # Sidebar filters
+    st.sidebar.header("🔍 Filters")
+    
+    # Initialize filtered dataframe
+    df_filtered = df_original.copy()
+    
+    # Hotel type filter
+    if 'hotel' in df_filtered.columns:
+        hotel_types = st.sidebar.multiselect(
+            'Hotel Type',
+            options=df_filtered['hotel'].unique(),
+            default=df_filtered['hotel'].unique()
+        )
+        df_filtered = df_filtered[df_filtered['hotel'].isin(hotel_types)]
+    
+    # Customer type filter
+    if 'customer_type' in df_filtered.columns:
+        customer_types = st.sidebar.multiselect(
+            'Customer Type',
+            options=df_filtered['customer_type'].unique(),
+            default=df_filtered['customer_type'].unique()
+        )
+        df_filtered = df_filtered[df_filtered['customer_type'].isin(customer_types)]
+    
+    # Cancellation filter
+    if 'is_canceled' in df_filtered.columns:
+        cancellation_filter = st.sidebar.radio(
+            'Booking Status',
+            options=['All', 'Not Canceled', 'Canceled'],
+            index=0
+        )
+        if cancellation_filter == 'Not Canceled':
+            df_filtered = df_filtered[df_filtered['is_canceled'] == 0]
+        elif cancellation_filter == 'Canceled':
+            df_filtered = df_filtered[df_filtered['is_canceled'] == 1]
+    
+    # Date range filter
+    if 'arrival_date' in df_filtered.columns:
+        st.sidebar.subheader("📅 Date Range")
+        min_date = df_filtered['arrival_date'].min()
+        max_date = df_filtered['arrival_date'].max()
         
-# cols6=st.columns(1)
-# with cols6[0]:
-#     with st.container(border=True):
-#         st.plotly_chart(fig1)         
-               
-
-
-# st.subheader('data checking')
-col=df.columns.tolist()
-st.subheader('The countries')
-st.write(df['country'].value_counts())
-
-# st.subheader('data visualization')
-# x=st.selectbox('select x_column',col)
-# y=st.selectbox('select y_column',col)
-
-# if st.button('generate'):
-#     st.line_chart(df.set_index(x)[y])
+        if pd.notna(min_date) and pd.notna(max_date):
+            date_range = st.sidebar.date_input(
+                "Select Date Range",
+                value=(min_date, max_date),
+                min_value=min_date,
+                max_value=max_date
+            )
+            
+            if len(date_range) == 2:
+                start_date, end_date = date_range
+                df_filtered = df_filtered[
+                    (df_filtered['arrival_date'] >= pd.to_datetime(start_date)) &
+                    (df_filtered['arrival_date'] <= pd.to_datetime(end_date))
+                ]
     
-# else:
-#     st.write('Please , select any column ')    
+    # Advanced filters
+    with st.sidebar.expander("⚙️ Advanced Filters"):
+        if 'adr' in df_filtered.columns:
+            adr_range = st.slider(
+                'Average Daily Rate ($)',
+                float(df_original['adr'].min()),
+                float(df_original['adr'].max()),
+                (float(df_original['adr'].min()), float(df_original['adr'].max()))
+            )
+            df_filtered = df_filtered[
+                (df_filtered['adr'] >= adr_range[0]) &
+                (df_filtered['adr'] <= adr_range[1])
+            ]
+        
+        if 'lead_time' in df_filtered.columns:
+            max_lead_time = st.number_input(
+                'Max Lead Time (days)',
+                min_value=0,
+                max_value=int(df_original['lead_time'].max()),
+                value=int(df_original['lead_time'].max())
+            )
+            df_filtered = df_filtered[df_filtered['lead_time'] <= max_lead_time]
+    
+    # Show filter info
+    st.sidebar.info(f"📊 Showing {len(df_filtered):,} of {len(df_original):,} bookings")
+    
+    # Download filtered data
+    if st.sidebar.button("⬇️ Download Filtered Data"):
+        csv = df_filtered.to_csv(index=False)
+        st.sidebar.download_button(
+            label="Download CSV",
+            data=csv,
+            file_name=f"filtered_bookings_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
+            mime="text/csv"
+        )
+    
+    # Main dashboard content
+    # Country map
+    with st.container(border=True):
+        st.plotly_chart(create_choropleth_map(countries), use_container_width=True)
+    
+    # Key metrics
+    cols = st.columns(4)
+    with cols[0]:
+        with st.container(border=True, height=120):
+            st.metric(
+                label="🌍 Countries",
+                value=len(df_filtered['country'].unique()) if 'country' in df_filtered.columns else 0
+            )
+    with cols[1]:
+        with st.container(border=True, height=120):
+            st.metric(
+                label="👥 Total Bookings",
+                value=f"{len(df_filtered):,}"
+            )
+    with cols[2]:
+        with st.container(border=True, height=120):
+            resort_count = df_filtered['hotel'].value_counts().get('Resort Hotel', 0) if 'hotel' in df_filtered.columns else 0
+            st.metric(
+                label="🏖️ Resort Hotels",
+                value=f"{resort_count:,}"
+            )
+    with cols[3]:
+        with st.container(border=True, height=120):
+            city_count = df_filtered['hotel'].value_counts().get('City Hotel', 0) if 'hotel' in df_filtered.columns else 0
+            st.metric(
+                label="🏙️ City Hotels",
+                value=f"{city_count:,}"
+            )
+    
+    # Row 1: Three charts
+    cols2 = st.columns(3)
+    with cols2[0]:
+        with st.container(border=True):
+            st.plotly_chart(create_polar_revenue_chart(df_filtered), use_container_width=True)
+    with cols2[1]:
+        with st.container(border=True):
+            st.plotly_chart(create_adr_by_month(df_filtered), use_container_width=True)
+    with cols2[2]:
+        with st.container(border=True):
+            st.plotly_chart(create_season_distribution(df_filtered), use_container_width=True)
+    
+    # Row 2: Lead time histogram
+    with st.container(border=True):
+        st.plotly_chart(create_lead_time_histogram(df_filtered), use_container_width=True)
+    
+    # Row 3: Two charts
+    cols5 = st.columns(2)
+    with cols5[0]:
+        with st.container(border=True):
+            st.plotly_chart(create_sunburst_chart(df_filtered), use_container_width=True)
+    with cols5[1]:
+        with st.container(border=True):
+            st.plotly_chart(create_adr_leadtime_scatter(df_filtered), use_container_width=True)
+    
+    # Row 4: Daily arrivals
+    with st.container(border=True):
+        st.plotly_chart(create_daily_arrivals_scatter(df_filtered), use_container_width=True)
+    
+    # Data explorer section
+    with st.expander("📋 View Data Table"):
+        st.subheader('Filtered Booking Data')
+        st.dataframe(df_filtered, use_container_width=True, height=400)
+        
+        # Country breakdown
+        st.subheader('📍 Top 10 Countries by Bookings')
+        if 'country' in df_filtered.columns:
+            country_counts = df_filtered['country'].value_counts().head(10)
+            st.bar_chart(country_counts)
+
+if __name__ == "__main__":
+    main()

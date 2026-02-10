@@ -61,29 +61,40 @@ def prepare_date_columns(df):
     return df_copy
 
 # Visualization functions
-def create_choropleth_map(countries_data):
-    """Create choropleth map showing country distribution."""
+def create_choropleth_map(countries_data, selected_countries=None):
+    """Create interactive choropleth map showing country distribution."""
+    
+    # Create a copy to avoid modifying original data
+    plot_data = countries_data.copy()
+    
     fig = px.choropleth(
-        countries_data,
+        plot_data,
         locations="Country_Code",
         color="Count",
         hover_name="Country_Code",
+        hover_data={'Count': ':,', 'Country_Code': True},
         color_continuous_scale=[
             (0.0, "lightblue"),
             (0.5, "blue"),
             (1.0, "darkblue")
         ],
         projection="natural earth",
-        title="🌍 Country Distribution by Booking Count",
+        title="🌍 Country Distribution by Booking Count (Click countries to filter)",
     )
     
     fig.update_layout(
         template="plotly_dark",
-        geo=dict(showframe=False, showcoastlines=True, projection_type="natural earth"),
+        geo=dict(
+            showframe=False,
+            showcoastlines=True,
+            projection_type="natural earth",
+            bgcolor="rgba(0,0,0,0)"
+        ),
         plot_bgcolor="rgba(0, 0, 0, 0)",
         paper_bgcolor="rgba(0, 0, 0, 0)",
-        margin=dict(l=0, r=0, t=40, b=0),
-        height=500
+        margin=dict(l=0, r=0, t=50, b=0),
+        height=550,
+        clickmode='event+select'
     )
     
     return fig
@@ -210,6 +221,41 @@ def create_adr_leadtime_scatter(df):
     )
     return fig
 
+def create_top_countries_bar(df, top_n=15):
+    """Create bar chart for top countries."""
+    if 'country' not in df.columns:
+        return go.Figure()
+    
+    country_counts = df['country'].value_counts().head(top_n).sort_values(ascending=True)
+    
+    fig = go.Figure(go.Bar(
+        x=country_counts.values,
+        y=country_counts.index,
+        orientation='h',
+        marker=dict(
+            color=country_counts.values,
+            colorscale='Blues',
+            showscale=True,
+            colorbar=dict(title="Bookings")
+        ),
+        text=country_counts.values,
+        textposition='auto',
+    ))
+    
+    fig.update_layout(
+        title=f"📊 Top {top_n} Countries by Bookings",
+        xaxis_title="Number of Bookings",
+        yaxis_title="Country",
+        height=500,
+        showlegend=False
+    )
+    
+    return fig
+
+# Initialize session state for country selection
+if 'selected_countries' not in st.session_state:
+    st.session_state.selected_countries = []
+
 # Main application
 def main():
     st.title('🏨 Hotel Booking Dashboard')
@@ -228,26 +274,59 @@ def main():
     # Sidebar filters
     st.sidebar.header("🔍 Filters")
     
+    # Country selection from map (interactive feature)
+    st.sidebar.subheader("🗺️ Map Selection")
+    
+    # Manual country selector (synced with map clicks)
+    if 'country' in df_original.columns:
+        all_countries = sorted(df_original['country'].unique())
+        
+        # Option to clear selection
+        col1, col2 = st.sidebar.columns(2)
+        with col1:
+            if st.button("🌍 Select All"):
+                st.session_state.selected_countries = []
+        with col2:
+            if st.button("❌ Clear"):
+                st.session_state.selected_countries = []
+        
+        # Multiselect that shows currently selected countries
+        selected_countries_input = st.sidebar.multiselect(
+            'Select Countries (or click on map)',
+            options=all_countries,
+            default=st.session_state.selected_countries if st.session_state.selected_countries else all_countries,
+            key='country_multiselect'
+        )
+        
+        # Update session state
+        st.session_state.selected_countries = selected_countries_input
+    
     # Initialize filtered dataframe
     df_filtered = df_original.copy()
+    
+    # Apply country filter
+    if st.session_state.selected_countries:
+        df_filtered = df_filtered[df_filtered['country'].isin(st.session_state.selected_countries)]
     
     # Hotel type filter
     if 'hotel' in df_filtered.columns:
         hotel_types = st.sidebar.multiselect(
             'Hotel Type',
-            options=df_filtered['hotel'].unique(),
-            default=df_filtered['hotel'].unique()
+            options=df_original['hotel'].unique(),
+            default=df_original['hotel'].unique()
         )
-        df_filtered = df_filtered[df_filtered['hotel'].isin(hotel_types)]
+        if hotel_types:
+            df_filtered = df_filtered[df_filtered['hotel'].isin(hotel_types)]
     
     # Customer type filter
     if 'customer_type' in df_filtered.columns:
         customer_types = st.sidebar.multiselect(
             'Customer Type',
-            options=df_filtered['customer_type'].unique(),
-            default=df_filtered['customer_type'].unique()
+            options=df_original['customer_type'].unique(),
+            default=df_original['customer_type'].unique()
         )
-        df_filtered = df_filtered[df_filtered['customer_type'].isin(customer_types)]
+        if customer_types:
+            df_filtered = df_filtered[df_filtered['customer_type'].isin(customer_types)]
     
     # Cancellation filter
     if 'is_canceled' in df_filtered.columns:
@@ -264,8 +343,8 @@ def main():
     # Date range filter
     if 'arrival_date' in df_filtered.columns:
         st.sidebar.subheader("📅 Date Range")
-        min_date = df_filtered['arrival_date'].min()
-        max_date = df_filtered['arrival_date'].max()
+        min_date = df_original['arrival_date'].min()
+        max_date = df_original['arrival_date'].max()
         
         if pd.notna(min_date) and pd.notna(max_date):
             date_range = st.sidebar.date_input(
@@ -308,6 +387,9 @@ def main():
     # Show filter info
     st.sidebar.info(f"📊 Showing {len(df_filtered):,} of {len(df_original):,} bookings")
     
+    if st.session_state.selected_countries and len(st.session_state.selected_countries) < len(all_countries):
+        st.sidebar.success(f"🗺️ {len(st.session_state.selected_countries)} countries selected")
+    
     # Download filtered data
     if st.sidebar.button("⬇️ Download Filtered Data"):
         csv = df_filtered.to_csv(index=False)
@@ -319,9 +401,38 @@ def main():
         )
     
     # Main dashboard content
-    # Country map
+    # Interactive Country map (updates based on filtered data)
     with st.container(border=True):
-        st.plotly_chart(create_choropleth_map(countries), use_container_width=True)
+        # Update countries data based on filtered dataframe
+        if 'country' in df_filtered.columns:
+            # Get country counts from filtered data
+            filtered_country_counts = df_filtered['country'].value_counts().reset_index()
+            filtered_country_counts.columns = ['country', 'Count']
+            
+            # Merge with countries location data
+            countries_filtered = countries.merge(
+                filtered_country_counts,
+                left_on='Country_Code',
+                right_on='country',
+                how='inner',
+                suffixes=('_old', '')
+            )
+            
+            # Drop old Count column if it exists
+            if 'Count_old' in countries_filtered.columns:
+                countries_filtered = countries_filtered.drop(columns=['Count_old'])
+            
+            map_fig = create_choropleth_map(
+                countries_filtered, 
+                selected_countries=st.session_state.selected_countries if st.session_state.selected_countries else None
+            )
+        else:
+            map_fig = create_choropleth_map(countries)
+            
+        st.plotly_chart(map_fig, use_container_width=True, key="world_map")
+        
+        # Instructions
+        st.caption("💡 **Tip:** The map updates based on your filters. Use the multiselect above or click countries, then use other filters to drill down.")
     
     # Key metrics
     cols = st.columns(4)
@@ -329,13 +440,15 @@ def main():
         with st.container(border=True, height=120):
             st.metric(
                 label="🌍 Countries",
-                value=len(df_filtered['country'].unique()) if 'country' in df_filtered.columns else 0
+                value=len(df_filtered['country'].unique()) if 'country' in df_filtered.columns else 0,
+                delta=f"{len(df_filtered['country'].unique()) - len(df_original['country'].unique())}" if 'country' in df_filtered.columns and len(st.session_state.selected_countries) > 0 else None
             )
     with cols[1]:
         with st.container(border=True, height=120):
             st.metric(
                 label="👥 Total Bookings",
-                value=f"{len(df_filtered):,}"
+                value=f"{len(df_filtered):,}",
+                delta=f"{len(df_filtered) - len(df_original):,}" if len(df_filtered) != len(df_original) else None
             )
     with cols[2]:
         with st.container(border=True, height=120):
@@ -351,6 +464,10 @@ def main():
                 label="🏙️ City Hotels",
                 value=f"{city_count:,}"
             )
+    
+    # Top countries bar chart
+    with st.container(border=True):
+        st.plotly_chart(create_top_countries_bar(df_filtered), use_container_width=True)
     
     # Row 1: Three charts
     cols2 = st.columns(3)
@@ -386,11 +503,10 @@ def main():
         st.subheader('Filtered Booking Data')
         st.dataframe(df_filtered, use_container_width=True, height=400)
         
-        # Country breakdown
-        st.subheader('📍 Top 10 Countries by Bookings')
-        if 'country' in df_filtered.columns:
-            country_counts = df_filtered['country'].value_counts().head(10)
-            st.bar_chart(country_counts)
+        # Show column statistics
+        if st.checkbox("Show Column Statistics"):
+            st.subheader("📈 Statistics")
+            st.write(df_filtered.describe())
 
 if __name__ == "__main__":
     main()
